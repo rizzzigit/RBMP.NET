@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="RizzziGit.Collections" Version="1.0.3" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFrameworks>net7.0;net6.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RizzziGit.RBMP</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <SelfContained>false</SelfContained>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugType>Embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>RizzziGit.RBMP</PackageId>
+
+    <AssemblyTitle>RizzziGit.RBMP</AssemblyTitle>
+    <Description>Simple dynamic binary messaging protocol that supports both independent and co-dependent communication.</Description>
+    <Product>RBMP</Product>
+    <Authors>RizzziGit</Authors>
+    <Version>1.0.8</Version>
+
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <FileVersion>1.0.8</FileVersion>
+    <RepoitoryType>git</RepoitoryType>
+    <RepositoryUrl>https://github.com/RizzziGit/RBMP.NET</RepositoryUrl>
+    <PackageReleaseNotes>Reworked the entire stack.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>

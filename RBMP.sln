@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33516.290
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RBMP", "RBMP\RBMP.csproj", "{64151283-E2CC-4CBA-A958-C4CE804D565B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RBMP.Testing", "RBMP.Testing\RBMP.Testing.csproj", "{875079F8-DB88-4053-AE05-55E4B5ECACB9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{64151283-E2CC-4CBA-A958-C4CE804D565B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{64151283-E2CC-4CBA-A958-C4CE804D565B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{64151283-E2CC-4CBA-A958-C4CE804D565B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{64151283-E2CC-4CBA-A958-C4CE804D565B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{875079F8-DB88-4053-AE05-55E4B5ECACB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{875079F8-DB88-4053-AE05-55E4B5ECACB9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{875079F8-DB88-4053-AE05-55E4B5ECACB9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{875079F8-DB88-4053-AE05-55E4B5ECACB9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2C1CD510-82EC-4E60-9FC0-402B2D61B96C}
+	EndGlobalSection
+EndGlobal
