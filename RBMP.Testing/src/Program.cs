@@ -42,7 +42,6 @@ public static class Program
         catch (Exception exception)
         {
           Console.WriteLine(exception);
-          // Console.WriteLine($"Exception: {exception.Message}");
         }
       });
     }
@@ -50,16 +49,19 @@ public static class Program
 
   public static void ServerConnection(Connection connection)
   {
-    Stream stream = Console.OpenStandardOutput();
-
     while (connection.IsConnected)
     {
-      byte[] message = connection.ReceiveMessage();
+      try
+      {
+        byte[] message = connection.ReceiveMessage();
 
-      stream.Write(message, 0, message.Length);
+        Console.Write(System.Text.Encoding.Default.GetString(message));
+      }
+      catch (Exception exception)
+      {
+        Console.WriteLine(exception);
+      }
     }
-
-    stream.Close();
   }
 
   public static void Client(string address)
@@ -69,12 +71,18 @@ public static class Program
     WebSocket webSocket = WebSocket.CreateFromStream(client.GetStream(), false, null, TimeSpan.Zero);
     Connection connection = new Connection(new(51UL), webSocket);
 
+    Console.CancelKeyPress += (sender, args) =>
+    {
+      connection.Disconnect();
+    };
+
     while (connection.IsConnected)
     {
       ConsoleKeyInfo info = Console.ReadKey(true);
       char character = info.Key == ConsoleKey.Enter ? '\n' : info.KeyChar;
 
       connection.SendMessage(new byte[] { ((byte)character) }, 0, 1);
+      Console.Write(character);
     }
 
     connection.Disconnect();

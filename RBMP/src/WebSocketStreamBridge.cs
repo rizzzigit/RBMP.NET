@@ -24,7 +24,7 @@ internal class WebSocketStreamBridge : Stream
   {
     base.Close();
 
-    if (!(new WebSocketState[] { WebSocketState.Open, WebSocketState.CloseReceived, WebSocketState.CloseSent }).Contains(WebSocket.State))
+    if (!(new WebSocketState[] { WebSocketState.Aborted, WebSocketState.Closed, WebSocketState.CloseSent }).Contains(WebSocket.State))
     {
       return;
     }
@@ -41,11 +41,25 @@ internal class WebSocketStreamBridge : Stream
 
   public override int Read(byte[] buffer, int offset, int count)
   {
+    if (
+      (WebSocket.State == WebSocketState.Closed) ||
+      (WebSocket.State == WebSocketState.Aborted)
+    )
+    {
+      return 0;
+    }
+
     var task = WebSocket.ReceiveAsync(new(buffer, offset, count), new(false));
 
     try
     {
       task.Wait();
+
+      if (task.Result.CloseStatus != null)
+      {
+        try { Close(); } catch {}
+      }
+
       return task.Result.Count;
     }
     catch (AggregateException exception)

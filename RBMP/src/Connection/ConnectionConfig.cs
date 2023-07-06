@@ -8,7 +8,7 @@ public class ConnectionConfig
   {
     if (buffer.Length != ConfigBufferSize)
     {
-      throw new InvalidDataException($"Invalid config.");
+      throw new System.InvalidOperationException($"Invalid config data.");
     }
 
     ulong clientId = BitConverter.ToUInt64(buffer, 0);

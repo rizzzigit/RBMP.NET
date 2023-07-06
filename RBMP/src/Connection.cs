@@ -14,7 +14,7 @@ public class Connection : IDisposable
   {
     if (!(underlyingStream.CanWrite && underlyingStream.CanRead))
     {
-      throw new InvalidOperationException("Duplex stream required.");
+      throw new InvalidStreamException(this);
     }
 
     UnderlyingStream = underlyingStream;
@@ -67,7 +67,7 @@ public class Connection : IDisposable
             int result = OnReceive(configBufferLengthBuffer, received, configBufferLengthBuffer.Length - received);
             if (result == 0)
             {
-              throw new InvalidDataException("Already end of stream.");
+              throw new InvalidStreamException(this);
             }
 
             received += result;
@@ -86,7 +86,7 @@ public class Connection : IDisposable
             int result = OnReceive(configBuffer, received, configBuffer.Length - received);
             if (result == 0)
             {
-              throw new InvalidDataException("Already end of stream.");
+              throw new InvalidStreamException(this);
             }
 
             received += result;
@@ -103,18 +103,18 @@ public class Connection : IDisposable
         try
         {
           RunReceiveThread(initResult);
-          OnReceiveThreadStop(null);
         }
         catch (Exception exception)
         {
-          Disconnect(ReceiveThreadException = exception);
-          OnReceiveThreadStop(exception);
+          ReceiveThreadException = exception;
         }
         finally
         {
           SendMutex.Dispose();
           ReceiveThread = null;
         }
+
+        Disconnect(ReceiveThreadException);
       })).Start();
 
       return (Initialized = initResult);
@@ -145,7 +145,24 @@ public class Connection : IDisposable
   public event ConnectionDisconnectHandler? Disconnected;
 
   public void Disconnect() => Disconnect(null);
-  public void Disconnect(Exception? exception) => OnDisconnect(exception);
+  public void Disconnect(Exception? exception)
+  {
+    try
+    {
+      byte flag = 0b110000;
+      if (exception != null)
+      {
+        flag |= 0b001000;
+      }
+
+      OnSend(new byte[] { 1, 0, 0, 0, flag }, 0, 5);
+    }
+    catch { }
+
+    ReceiveThreadException = new ConnectionClosedException(this, exception == null);
+    OnReceiveThreadStop(exception);
+    OnDisconnect(exception);
+  }
 
   private Exception? ReceiveThreadException;
   private void RunReceiveThread(ConnectionInitResult result) => RunReceiveThread(result.RemoteConfig);
@@ -169,26 +186,34 @@ public class Connection : IDisposable
 
       if ((flag & 0b100000) != 0)
       {
-        byte[] buffer;
+        if ((flag & 0b010000) != 0)
         {
-          Receive(new byte[0], 0, 0, out int totalLength);
-          buffer = new byte[totalLength];
+          ReceiveThreadException = new ConnectionClosedException(this, (flag & 0b001000) != 0);
+          return;
         }
-
-        int bufferLength = 0;
-        do
+        else
         {
-          int result = Receive(buffer, bufferLength, Int32.Min(Config.ReceiveBufferSizeLimit, buffer.Length), out int nextSegment);
-          if (result == 0)
+          byte[] buffer;
           {
-            break;
+            Receive(new byte[0], 0, 0, out int totalLength);
+            buffer = new byte[totalLength];
           }
 
-          bufferLength += result;
-        }
-        while (bufferLength < buffer.Length);
+          int bufferLength = 0;
+          do
+          {
+            int result = Receive(buffer, bufferLength, Int32.Min(Config.ReceiveBufferSizeLimit, buffer.Length), out int nextSegment);
+            if (result == 0)
+            {
+              break;
+            }
 
-        MessageQueue.Enqueue(buffer);
+            bufferLength += result;
+          }
+          while (bufferLength < buffer.Length);
+
+          MessageQueue.Enqueue(buffer);
+        }
       }
       else
       {
@@ -319,7 +344,7 @@ public class Connection : IDisposable
   {
     if (RemoteConfig == null)
     {
-      throw new InvalidOperationException($"Remote is not yet ready to send messages.");
+      throw new InvalidOperationException(this, $"Remote is not yet ready to send messages.");
     }
 
     if (ReceiveThread == null)
@@ -355,10 +380,7 @@ public class Connection : IDisposable
 
     if (Config.ReceiveBufferSizeLimit < ReceiveNextSegment)
     {
-      Exception exception = new InvalidOperationException($"Message size {ReceiveNextSegment} received is larger than allowed {Config.ReceiveBufferSizeLimit}.");
-
-      Disconnect(exception);
-      throw exception;
+      throw new InvalidDataException(this, $"Message size {ReceiveNextSegment} received is larger than allowed {Config.ReceiveBufferSizeLimit}.");
     }
 
     if (count == 0)
@@ -393,11 +415,11 @@ public class Connection : IDisposable
   {
     if (RemoteConfig == null)
     {
-      throw new InvalidOperationException($"Remote is not yet ready to receive messages.");
+      throw new InvalidOperationException(this, $"Remote is not yet ready to receive messages.");
     }
     else if (length > RemoteConfig.ReceiveBufferSizeLimit)
     {
-      throw new InvalidOperationException($"Attempt to send message {length} larger than allowed {RemoteConfig.ReceiveBufferSizeLimit}.");
+      throw new InvalidOperationException(this, $"Segment size {length} is larger than allowed {RemoteConfig.ReceiveBufferSizeLimit}.");
     }
   }
   // private MessageCodec? IncomingDecryptor;
@@ -416,7 +438,7 @@ public class Connection : IDisposable
       (totalLength < 0)
     )
     {
-      throw new InvalidOperationException($"Message size {totalLength} is larger than allowed {MaxSendMessageSize}");
+      throw new InvalidOperationException(this, $"Message size {totalLength} is larger than allowed {MaxSendMessageSize}");
     }
 
     CheckSendSize(length + 1);
@@ -447,10 +469,10 @@ public class Connection : IDisposable
       (totalLength < 0)
     )
     {
-      throw new InvalidOperationException($"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
+      throw new InvalidOperationException(this, $"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
     } else if (PendingRequestQueue.Count >= (RemoteConfig?.ConcurrentPendingRequestLimit ?? 0))
     {
-      throw new InvalidOperationException($"Max number of concurrent pending requests is {RemoteConfig?.ConcurrentPendingRequestLimit ?? 0}");
+      throw new InvalidOperationException(this, $"Max number of concurrent pending requests has been reached ({RemoteConfig?.ConcurrentPendingRequestLimit ?? 0})");
     }
 
     TaskCompletionSource<ConnectionResponseData> source = new();
@@ -494,7 +516,7 @@ public class Connection : IDisposable
       (totalLength < 0)
     )
     {
-      throw new InvalidOperationException($"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
+      throw new InvalidOperationException(this, $"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
     }
 
     SendMutex.WaitOne();
