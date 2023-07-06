@@ -432,6 +432,16 @@ public class Connection : IDisposable
   public int MaxSendMessageSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 1;
   public void SendMessage(byte[] buffer, int offset, int length)
   {
+    if (!IsConnected)
+    {
+      if (ReceiveThreadException is ConnectionClosedException)
+      {
+        throw ReceiveThreadException;
+      }
+
+      throw new ConnectionClosedException(this, false);
+    }
+
     int totalLength = length + 1;
     if (
       (totalLength > MaxSendMessageSize) ||
@@ -463,6 +473,16 @@ public class Connection : IDisposable
   public int MaxSendRequestSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 9;
   public Task<ConnectionResponseData> SendRequestAsync(uint command, byte[] payload, int payloadOffset, int payloadLength)
   {
+    if (!IsConnected)
+    {
+      if (ReceiveThreadException is ConnectionClosedException)
+      {
+        throw ReceiveThreadException;
+      }
+
+      throw new ConnectionClosedException(this, false);
+    }
+
     int totalLength = payloadLength + 9;
     if (
       (totalLength > MaxSendMessageSize) ||
@@ -510,6 +530,16 @@ public class Connection : IDisposable
 
   internal void SendResponse(uint id, byte[] payload, int payloadOffset, int payloadLength, bool isError)
   {
+    if (!IsConnected)
+    {
+      if (ReceiveThreadException is ConnectionClosedException)
+      {
+        throw ReceiveThreadException;
+      }
+
+      throw new ConnectionClosedException(this, false);
+    }
+
     int totalLength = payloadLength + 5;
     if (
       (totalLength > MaxSendMessageSize) ||
