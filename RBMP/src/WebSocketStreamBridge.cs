@@ -24,7 +24,7 @@ internal class WebSocketStreamBridge : Stream
   {
     base.Close();
 
-    if (!(new WebSocketState[] { WebSocketState.Aborted, WebSocketState.Closed, WebSocketState.CloseSent }).Contains(WebSocket.State))
+    if ((new WebSocketState[] { WebSocketState.Aborted, WebSocketState.Closed, WebSocketState.CloseSent }).Contains(WebSocket.State))
     {
       return;
     }
@@ -70,7 +70,7 @@ internal class WebSocketStreamBridge : Stream
 
   public override void Write(byte[] buffer, int offset, int count)
   {
-    var task = WebSocket.SendAsync(new(buffer, offset, count), WebSocketMessageType.Binary, false, new(false));
+    var task = WebSocket.SendAsync(new(buffer, offset, count), WebSocketMessageType.Binary, true, new(false));
 
     try
     {

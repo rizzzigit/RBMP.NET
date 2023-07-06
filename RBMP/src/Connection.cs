@@ -9,6 +9,7 @@ public delegate void ConnectionDisconnectHandler(Connection connection, Exceptio
 
 public class Connection : IDisposable
 {
+  public Connection(ConnectionConfig config, HttpListenerWebSocketContext listenerWebSocketContext) : this(config, listenerWebSocketContext.WebSocket) { }
   public Connection(ConnectionConfig config, WebSocket webSocket) : this(config, new WebSocketStreamBridge(webSocket)) { }
   public Connection(ConnectionConfig config, Stream underlyingStream)
   {

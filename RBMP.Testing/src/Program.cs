@@ -24,13 +24,24 @@ public static class Program
 
   public static void Server(string address)
   {
-    TcpListener listener = new(IPEndPoint.Parse(address));
+    HttpListener listener = new();
+    listener.Prefixes.Add("http://+:8080/");
     listener.Start();
 
     while (true)
     {
-      TcpClient client = listener.AcceptTcpClient();
-      WebSocket websocket = WebSocket.CreateFromStream(client.GetStream(), true, null, TimeSpan.Zero);
+      HttpListenerContext context = listener.GetContext();
+      if (!context.Request.IsWebSocketRequest)
+      {
+        context.Response.StatusCode = 400;
+        context.Response.Close();
+        continue;
+      }
+
+      Task<HttpListenerWebSocketContext> webSocketContext = context.AcceptWebSocketAsync(null);
+      webSocketContext.Wait();
+
+      WebSocket websocket = webSocketContext.Result.WebSocket;
       Connection connection = new Connection(new(50UL), websocket);
 
       Task.Run(() =>
@@ -51,24 +62,17 @@ public static class Program
   {
     while (connection.IsConnected)
     {
-      try
-      {
-        byte[] message = connection.ReceiveMessage();
+      byte[] message = connection.ReceiveMessage();
 
-        Console.Write(System.Text.Encoding.Default.GetString(message));
-      }
-      catch (Exception exception)
-      {
-        Console.WriteLine(exception);
-      }
+      Console.Write(System.Text.Encoding.Default.GetString(message));
     }
   }
 
   public static void Client(string address)
   {
-    TcpClient client = new();
-    client.Connect(IPEndPoint.Parse(address));
-    WebSocket webSocket = WebSocket.CreateFromStream(client.GetStream(), false, null, TimeSpan.Zero);
+    ClientWebSocket webSocket = new();
+    webSocket.Options.AddSubProtocol("permessage-deflate");
+    webSocket.ConnectAsync(new Uri(address), new(false)).Wait();
     Connection connection = new Connection(new(51UL), webSocket);
 
     Console.CancelKeyPress += (sender, args) =>
