@@ -405,7 +405,6 @@ public class Connection : IDisposable
 
   private WaitQueue<byte[]> MessageQueue;
 
-  public Task<byte[]> ReceiveMessageAsync() => MessageQueue.DequeueAsync();
   public byte[] ReceiveMessage() => MessageQueue.Dequeue();
 
   public int MaxSendMessageSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 1;
@@ -438,7 +437,6 @@ public class Connection : IDisposable
   private ConcurrentDictionary<uint, TaskCompletionSource<ConnectionResponseData>> PendingRequestQueue;
 
   public ConnectionRequestData ReceiveRequest() => RequestQueue.Dequeue();
-  public Task<ConnectionRequestData> ReceiveRequestAsync() => RequestQueue.DequeueAsync();
 
   public int MaxSendRequestSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 9;
   public Task<ConnectionResponseData> SendRequestAsync(uint command, byte[] payload, int payloadOffset, int payloadLength)
