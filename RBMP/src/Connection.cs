@@ -1,11 +1,15 @@
 using System.Collections.Concurrent;
+using System.Net.WebSockets;
 
 namespace RizzziGit.RBMP;
 
 using Collections;
 
+public delegate void ConnectionDisconnectHandler(Connection connection, Exception? exception);
+
 public class Connection : IDisposable
 {
+  public Connection(ConnectionConfig config, WebSocket webSocket) : this(config, new WebSocketStreamBridge(webSocket)) { }
   public Connection(ConnectionConfig config, Stream underlyingStream)
   {
     if (!(underlyingStream.CanWrite && underlyingStream.CanRead))
@@ -119,21 +123,26 @@ public class Connection : IDisposable
     return Initialized;
   }
 
-  public bool IsConnected => ReceiveThread?.IsAlive == true;
-  public int OnReceive(byte[] buffer, int offset, int count) => UnderlyingStream.Read(buffer, offset, count);
-  public int OnSend(byte[] buffer, int offset, int count)
+  public virtual bool IsConnected => ReceiveThread?.IsAlive == true;
+  protected virtual int OnReceive(byte[] buffer, int offset, int count) => UnderlyingStream.Read(buffer, offset, count);
+  protected virtual int OnSend(byte[] buffer, int offset, int count)
   {
     UnderlyingStream.Write(buffer, offset, count);
     return count;
   }
-  public void OnDisconnect(Exception? exception)
+  protected virtual void OnDisconnect(Exception? exception)
   {
-    UnderlyingStream.Close();
+    try
+    {
+      UnderlyingStream.Close();
+    }
+    finally
+    {
+      Disconnected?.Invoke(this, exception);
+    }
   }
-  // public abstract bool IsConnected { get; }
-  // protected abstract int OnReceive(byte[] buffer, int offset, int count);
-  // protected abstract int OnSend(byte[] buffer, int offset, int count);
-  // protected abstract void OnDisconnect(Exception? exception);
+
+  public event ConnectionDisconnectHandler? Disconnected;
 
   public void Disconnect() => Disconnect(null);
   public void Disconnect(Exception? exception) => OnDisconnect(exception);

@@ -1,8 +1,9 @@
 ﻿using System.Diagnostics;
+using System.Net;
+using System.Net.WebSockets;
+using System.Net.Sockets;
 
 namespace RizzziGit.RBMP.Testing;
-
-using Buffer;
 
 public static class Program
 {
@@ -23,14 +24,60 @@ public static class Program
 
   public static void Server(string address)
   {
+    TcpListener listener = new(IPEndPoint.Parse(address));
+    listener.Start();
+
+    while (true)
+    {
+      TcpClient client = listener.AcceptTcpClient();
+      WebSocket websocket = WebSocket.CreateFromStream(client.GetStream(), true, null, TimeSpan.Zero);
+      Connection connection = new Connection(new(50UL), websocket);
+
+      Task.Run(() =>
+      {
+        try
+        {
+          ServerConnection(connection);
+        }
+        catch (Exception exception)
+        {
+          Console.WriteLine(exception);
+          // Console.WriteLine($"Exception: {exception.Message}");
+        }
+      });
+    }
   }
 
   public static void ServerConnection(Connection connection)
   {
+    Stream stream = Console.OpenStandardOutput();
+
+    while (connection.IsConnected)
+    {
+      byte[] message = connection.ReceiveMessage();
+
+      stream.Write(message, 0, message.Length);
+    }
+
+    stream.Close();
   }
 
   public static void Client(string address)
   {
+    TcpClient client = new();
+    client.Connect(IPEndPoint.Parse(address));
+    WebSocket webSocket = WebSocket.CreateFromStream(client.GetStream(), false, null, TimeSpan.Zero);
+    Connection connection = new Connection(new(51UL), webSocket);
+
+    while (connection.IsConnected)
+    {
+      ConsoleKeyInfo info = Console.ReadKey(true);
+      char character = info.Key == ConsoleKey.Enter ? '\n' : info.KeyChar;
+
+      connection.SendMessage(new byte[] { ((byte)character) }, 0, 1);
+    }
+
+    connection.Disconnect();
   }
 
   public static Process? StartProcess(bool isServer)
