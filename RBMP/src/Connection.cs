@@ -111,7 +111,6 @@ public class Connection : IDisposable
         }
         finally
         {
-          SendMutex.Dispose();
           ReceiveThread = null;
         }
 
@@ -148,6 +147,8 @@ public class Connection : IDisposable
   public void Disconnect() => Disconnect(null);
   public void Disconnect(Exception? exception)
   {
+    try { SendMutex.Dispose(); } catch { }
+
     try
     {
       byte flag = 0b110000;
@@ -321,21 +322,14 @@ public class Connection : IDisposable
 
   private void OnReceiveThreadStop(Exception? exception)
   {
-    MessageQueue.Dispose(exception);
-    RequestQueue.Dispose(exception);
+    try { MessageQueue.Dispose(exception); } catch { }
+    try { RequestQueue.Dispose(exception); } catch { }
 
     foreach (uint key in PendingRequestQueue.Keys)
     {
       if (PendingRequestQueue.Remove(key, out TaskCompletionSource<ConnectionResponseData>? value))
       {
-        if (exception != null)
-        {
-          value.SetException(exception);
-        }
-        else
-        {
-          value.SetCanceled();
-        }
+        value.SetException(new ConnectionClosedException(this, exception == null));
       }
     }
   }
