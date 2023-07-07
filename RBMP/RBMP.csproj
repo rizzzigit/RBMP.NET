@@ -26,15 +26,15 @@
     <Description>Simple dynamic binary messaging protocol that supports both independent and co-dependent communication.</Description>
     <Product>RBMP</Product>
     <Authors>RizzziGit</Authors>
-    <Version>1.0.10</Version>
+    <Version>1.0.11</Version>
 
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
-    <FileVersion>1.0.10</FileVersion>
+    <FileVersion>1.0.11</FileVersion>
     <RepoitoryType>git</RepoitoryType>
     <RepositoryUrl>https://github.com/RizzziGit/RBMP.NET</RepositoryUrl>
-    <PackageReleaseNotes>Fix websocket closeing handshake and custom exceptions.</PackageReleaseNotes>
+    <PackageReleaseNotes>Enforce one segment per message in websocket stream bridge and fix connection error handling.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
