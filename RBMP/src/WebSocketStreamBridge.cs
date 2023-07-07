@@ -27,6 +27,7 @@ internal class WebSocketStreamBridge : Stream
   public override void Close()
   {
     base.Close();
+    ReceiveCancellationTokenSource?.Cancel();
 
     if ((new WebSocketState[] { WebSocketState.Aborted, WebSocketState.Closed, WebSocketState.CloseSent }).Contains(WebSocket.State))
     {
@@ -37,6 +38,7 @@ internal class WebSocketStreamBridge : Stream
     {
       try { _Write(new byte[0], 0, 0, true); }
       catch { }
+
       WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, new(false)).Wait();
     }
     catch (AggregateException exception)
@@ -45,6 +47,7 @@ internal class WebSocketStreamBridge : Stream
     }
   }
 
+  private CancellationTokenSource? ReceiveCancellationTokenSource;
   public override int Read(byte[] buffer, int offset, int count)
   {
     if (
@@ -55,7 +58,7 @@ internal class WebSocketStreamBridge : Stream
       return 0;
     }
 
-    var task = WebSocket.ReceiveAsync(new(buffer, offset, count), new(false));
+    var task = WebSocket.ReceiveAsync(new(buffer, offset, count), (ReceiveCancellationTokenSource = new()).Token);
 
     try
     {

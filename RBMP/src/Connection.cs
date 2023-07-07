@@ -105,23 +105,25 @@ public class Connection : IDisposable
         {
           RunReceiveThread(initResult);
         }
-        catch (Exception exception)
+        catch (Exception _exception)
         {
-          ReceiveThreadException = exception;
+          Exception = _exception;
         }
         finally
         {
           ReceiveThread = null;
         }
 
-        Disconnect(ReceiveThreadException);
+        OnReceiveThreadStop(Exception);
       })).Start();
 
-      return (Initialized = initResult);
+      Initialized = initResult;
     }
 
     return Initialized;
   }
+
+  private Exception? Exception;
 
   public virtual bool IsConnected => ReceiveThread?.IsAlive == true;
   protected virtual int OnReceive(byte[] buffer, int offset, int count) => UnderlyingStream.Read(buffer, offset, count);
@@ -130,25 +132,12 @@ public class Connection : IDisposable
     UnderlyingStream.Write(buffer, offset, count);
     return count;
   }
-  protected virtual void OnDisconnect(Exception? exception)
-  {
-    try
-    {
-      UnderlyingStream.Close();
-    }
-    finally
-    {
-      Disconnected?.Invoke(this, exception);
-    }
-  }
 
   public event ConnectionDisconnectHandler? Disconnected;
 
   public void Disconnect() => Disconnect(null);
   public void Disconnect(Exception? exception)
   {
-    try { SendMutex.Dispose(); } catch { }
-
     try
     {
       byte flag = 0b110000;
@@ -161,12 +150,10 @@ public class Connection : IDisposable
     }
     catch { }
 
-    ReceiveThreadException = new ConnectionClosedException(this, exception == null);
-    OnReceiveThreadStop(exception);
-    OnDisconnect(exception);
+    try { UnderlyingStream.Close(); }
+    finally { Disconnected?.Invoke(this, exception); }
   }
 
-  private Exception? ReceiveThreadException;
   private void RunReceiveThread(ConnectionInitResult result) => RunReceiveThread(result.RemoteConfig);
   private void RunReceiveThread(ConnectionConfig remoteConfig)
   {
@@ -190,7 +177,6 @@ public class Connection : IDisposable
       {
         if ((flag & 0b010000) != 0)
         {
-          ReceiveThreadException = new ConnectionClosedException(this, (flag & 0b001000) != 0);
           return;
         }
         else
@@ -322,14 +308,18 @@ public class Connection : IDisposable
 
   private void OnReceiveThreadStop(Exception? exception)
   {
-    try { MessageQueue.Dispose(exception); } catch { }
-    try { RequestQueue.Dispose(exception); } catch { }
+    Exception toBeThrown = new ConnectionClosedException(this, exception);
+
+    try { MessageQueue.Dispose(toBeThrown); } catch { }
+    try { RequestQueue.Dispose(toBeThrown); } catch { }
+    try { SendMutex.Dispose(); } catch { }
+    Console.WriteLine(toBeThrown);
 
     foreach (uint key in PendingRequestQueue.Keys)
     {
       if (PendingRequestQueue.Remove(key, out TaskCompletionSource<ConnectionResponseData>? value))
       {
-        value.SetException(new ConnectionClosedException(this, exception == null));
+        value.SetException(toBeThrown);
       }
     }
   }
@@ -340,18 +330,6 @@ public class Connection : IDisposable
     if (RemoteConfig == null)
     {
       throw new InvalidOperationException(this, $"Remote is not yet ready to send messages.");
-    }
-
-    if (ReceiveThread == null)
-    {
-      if (ReceiveThreadException != null)
-      {
-        throw ReceiveThreadException;
-      }
-      else
-      {
-        RunReceiveThread(RemoteConfig);
-      }
     }
 
     if (ReceiveNextSegment <= 0)
@@ -417,8 +395,6 @@ public class Connection : IDisposable
       throw new InvalidOperationException(this, $"Segment size {length} is larger than allowed {RemoteConfig.ReceiveBufferSizeLimit}.");
     }
   }
-  // private MessageCodec? IncomingDecryptor;
-  // private MessageCodec? OutgoingEncryptor;
 
   private WaitQueue<byte[]> MessageQueue;
 
@@ -429,12 +405,7 @@ public class Connection : IDisposable
   {
     if (!IsConnected)
     {
-      if (ReceiveThreadException is ConnectionClosedException)
-      {
-        throw ReceiveThreadException;
-      }
-
-      throw new ConnectionClosedException(this, false);
+      throw new ConnectionClosedException(this, Exception);
     }
 
     int totalLength = length + 1;
@@ -470,12 +441,7 @@ public class Connection : IDisposable
   {
     if (!IsConnected)
     {
-      if (ReceiveThreadException is ConnectionClosedException)
-      {
-        throw ReceiveThreadException;
-      }
-
-      throw new ConnectionClosedException(this, false);
+      throw new ConnectionClosedException(this, Exception);
     }
 
     int totalLength = payloadLength + 9;
@@ -527,12 +493,7 @@ public class Connection : IDisposable
   {
     if (!IsConnected)
     {
-      if (ReceiveThreadException is ConnectionClosedException)
-      {
-        throw ReceiveThreadException;
-      }
-
-      throw new ConnectionClosedException(this, false);
+      throw new ConnectionClosedException(this, Exception);
     }
 
     int totalLength = payloadLength + 5;

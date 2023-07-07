@@ -2,7 +2,8 @@ namespace RizzziGit.RBMP;
 
 public class ConnectionException : Exception
 {
-  public ConnectionException(Connection connection, string message) : base(message)
+  public ConnectionException(Connection connection, string message) : this(connection, message, null) { }
+  public ConnectionException(Connection connection, string message, Exception? cause) : base(message, cause)
   {
     Connection = connection;
   }
@@ -12,12 +13,12 @@ public class ConnectionException : Exception
 
 public class ConnectionClosedException : ConnectionException
 {
-  public ConnectionClosedException(Connection connection, bool graceful) : base(connection, "Connection is closed.")
+  public ConnectionClosedException(Connection connection, Exception? cause) : base(connection, "Connection is closed.")
   {
-    WasGraceful = graceful;
+    Cause = cause;
   }
 
-  public readonly bool WasGraceful;
+  public readonly Exception? Cause;
 }
 
 public class InvalidStreamException : ConnectionException
