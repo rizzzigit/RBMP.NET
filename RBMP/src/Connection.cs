@@ -159,8 +159,7 @@ public class Connection : IDisposable
     }
     catch { }
 
-    try { UnderlyingStream.Close(); }
-    finally { Disconnected?.Invoke(this, exception); }
+    try { UnderlyingStream.Close(); } catch { }
   }
 
   private void RunReceiveThread(ConnectionInitResult result) => RunReceiveThread(result.RemoteConfig);
@@ -331,6 +330,8 @@ public class Connection : IDisposable
         value.SetException(toBeThrown);
       }
     }
+
+    Disconnected?.Invoke(this, exception);
   }
 
   private int ReceiveNextSegment = 0;
