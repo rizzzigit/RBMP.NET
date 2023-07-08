@@ -627,6 +627,7 @@ public class Connection : IDisposable
     }
   }
 
+  public int MaxSendResponseSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 5;
   internal void SendResponse(uint id, byte[] payload, int payloadOffset, int payloadLength, bool isError)
   {
     if (!IsConnected)
@@ -636,10 +637,13 @@ public class Connection : IDisposable
 
     int totalLength = payloadLength + 5;
     if (
-      (totalLength > MaxSendMessageSize) ||
+      (totalLength > MaxSendResponseSize) ||
       (totalLength < 0)
     )
     {
+      throw new InvalidOperationException(this, $"Response size {totalLength} is alrger than allowed {MaxSendResponseSize}.");
+    }
+
     {
       RemoteRequestCancellationQueue.Remove(id, out CancellationTokenSource? value);
     }
