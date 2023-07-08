@@ -506,17 +506,30 @@ public class Connection : IDisposable
 
     if (!cancellationToken.IsCancellationRequested)
     {
-      var cancellationRegistration = cancellationToken.Register(() => source.SetCanceled(cancellationToken));
+      bool cancelRemotely = false;
       uint id;
-      do
+      do { id = (uint)Random.Shared.Next(); } while (PendingRequestQueue.ContainsKey(id));
+
+      CancellationTokenRegistration? cancellationTokenRegistration = null;
+      cancellationTokenRegistration = cancellationToken.Register(() =>
       {
-        id = (uint)Random.Shared.Next();
-      } while (PendingRequestQueue.ContainsKey(id));
+        cancellationTokenRegistration?.Unregister();
+
+        if (cancelRemotely)
+        {
+          SendRequestCancellation(id);
+        }
+        else
+        {
+          try { source.SetCanceled(cancellationToken); } catch {  }
+        }
+      });
 
       PendingRequestQueue.TryAdd(id, source);
       SendMutex.WaitOne();
       try
       {
+        cancelRemotely = true;
         OnSend(BitConverter.GetBytes(9 + payloadLength), 0, 4);
         OnSend(new byte[] { 0b000000 }, 0, 1);
         OnSend(BitConverter.GetBytes(id), 0, 4);
@@ -531,18 +544,6 @@ public class Connection : IDisposable
       finally
       {
         SendMutex.ReleaseMutex();
-      }
-      cancellationRegistration.Unregister();
-
-      {
-        CancellationTokenRegistration?[] remoteCancellationTokenRegistration = new CancellationTokenRegistration?[] { null };
-
-        remoteCancellationTokenRegistration[0] = cancellationToken.Register(() =>
-        {
-          remoteCancellationTokenRegistration[0]?.Unregister();
-
-          SendRequestCancellation(id);
-        });
       }
     }
     else
