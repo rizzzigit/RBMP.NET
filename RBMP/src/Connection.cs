@@ -23,6 +23,7 @@ public class Connection : IDisposable
 
     MessageQueue = new();
     RequestQueue = new();
+    RemoteRequestCancellationQueue = new();
     PendingRequestQueue = new();
 
     SendMutex = new();
@@ -263,7 +264,22 @@ public class Connection : IDisposable
 
           if (PendingRequestQueue.Remove(id, out TaskCompletionSource<ConnectionResponseData>? value))
           {
-            value.SetResult(new(this, id, (flag & 0b001000) != 0, payload));
+            if ((flag & 0b000100) != 0)
+            {
+              value.SetCanceled();
+            }
+            else
+            {
+              value.SetResult(new(this, id, (flag & 0b001000) != 0, payload));
+            }
+          }
+        }
+        else if ((flag & 0b001000) != 0)
+        {
+          if (RemoteRequestCancellationQueue.Remove(id, out CancellationTokenSource? value))
+          {
+            try { value.Cancel(); } catch { }
+            SendResponseCancellation(id);
           }
         }
         else
@@ -307,7 +323,9 @@ public class Connection : IDisposable
               while (payloadLength < payload.Length);
             }
 
-            RequestQueue.Enqueue(new(this, id, command, payload));
+            CancellationTokenSource source = new();
+            RemoteRequestCancellationQueue.TryAdd(id, source);
+            RequestQueue.Enqueue(new(this, id, command, payload, source.Token));
           }
         }
       }
@@ -446,12 +464,13 @@ public class Connection : IDisposable
   }
 
   private WaitQueue<ConnectionRequestData> RequestQueue;
+  private ConcurrentDictionary<uint, CancellationTokenSource> RemoteRequestCancellationQueue;
   private ConcurrentDictionary<uint, TaskCompletionSource<ConnectionResponseData>> PendingRequestQueue;
 
   public ConnectionRequestData ReceiveRequest() => RequestQueue.Dequeue();
 
   public int MaxSendRequestSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 9;
-  public Task<ConnectionResponseData> SendRequestAsync(uint command, byte[] payload, int payloadOffset, int payloadLength)
+  public Task<ConnectionResponseData> SendRequestAsync(uint command, byte[] payload, int payloadOffset, int payloadLength, CancellationToken cancellationToken)
   {
     if (!IsConnected)
     {
@@ -471,17 +490,80 @@ public class Connection : IDisposable
     }
 
     TaskCompletionSource<ConnectionResponseData> source = new();
-    uint id = (uint)Random.Shared.Next();
+
+    if (!cancellationToken.IsCancellationRequested)
+    {
+      var cancellationRegistration = cancellationToken.Register(() => source.SetCanceled(cancellationToken));
+      uint id;
+      do
+      {
+        id = (uint)Random.Shared.Next();
+      } while (PendingRequestQueue.ContainsKey(id));
+
+      PendingRequestQueue.TryAdd(id, source);
+      SendMutex.WaitOne();
+      try
+      {
+        OnSend(BitConverter.GetBytes(9 + payloadLength), 0, 4);
+        OnSend(new byte[] { 0b000000 }, 0, 1);
+        OnSend(BitConverter.GetBytes(id), 0, 4);
+        OnSend(BitConverter.GetBytes(command), 0, 4);
+        OnSend(payload, payloadOffset, payloadLength);
+      }
+      catch (Exception exception)
+      {
+        Disconnect(exception);
+        throw new ConnectionClosedException(this, exception);
+      }
+      finally
+      {
+        SendMutex.ReleaseMutex();
+      }
+      cancellationRegistration.Unregister();
+
+      {
+        CancellationTokenRegistration?[] remoteCancellationTokenRegistration = new CancellationTokenRegistration?[] { null };
+
+        remoteCancellationTokenRegistration[0] = cancellationToken.Register(() =>
+        {
+          remoteCancellationTokenRegistration[0]?.Unregister();
+
+          SendRequestCancellation(id);
+        });
+      }
+    }
+    else
+    {
+      source.SetCanceled(cancellationToken);
+    }
+
+    return source.Task;
+  }
+
+  public ConnectionResponseData SendRequest(uint command, byte[] payload, int payloadOffset, int payloadLength, CancellationToken cancellationToken)
+  {
+    Task<ConnectionResponseData> task = SendRequestAsync(command, payload, payloadOffset, payloadLength, cancellationToken);
+
+    try {
+      task.Wait();
+
+      return task.Result;
+    }
+    catch (AggregateException exception) { throw exception.GetBaseException() ?? throw new TaskCanceledException(); }
+  }
+
+  internal void SendRequestCancellation(uint id)
+  {
+    if (!IsConnected)
+    {
+      throw new ConnectionClosedException(this, Exception);
+    }
 
     SendMutex.WaitOne();
-    PendingRequestQueue.TryAdd(id, source);
     try
     {
-      OnSend(BitConverter.GetBytes(9 + payloadLength), 0, 4);
-      OnSend(new byte[] { 0b000000 }, 0, 1);
+      OnSend(new byte[] { 5, 0, 0, 0, 0b001000 }, 0, 5);
       OnSend(BitConverter.GetBytes(id), 0, 4);
-      OnSend(BitConverter.GetBytes(command), 0, 4);
-      OnSend(payload, payloadOffset, payloadLength);
     }
     catch (Exception exception)
     {
@@ -492,20 +574,30 @@ public class Connection : IDisposable
     {
       SendMutex.ReleaseMutex();
     }
-
-    return source.Task;
   }
 
-  public ConnectionResponseData SendRequest(uint command, byte[] payload, int payloadOffset, int payloadLength)
+  internal void SendResponseCancellation(uint id)
   {
-    Task<ConnectionResponseData> task = SendRequestAsync(command, payload, payloadOffset, payloadLength);
-
-    try {
-      task.Wait();
-
-      return task.Result;
+    if (!IsConnected)
+    {
+      throw new ConnectionClosedException(this, Exception);
     }
-    catch (AggregateException exception) { throw exception.GetBaseException() ?? throw new TaskCanceledException(); }
+
+    SendMutex.WaitOne();
+    try
+    {
+      OnSend(new byte[] { 5, 0, 0, 0, 0b010100 }, 0, 5);
+      OnSend(BitConverter.GetBytes(id), 0, 4);
+    }
+    catch (Exception exception)
+    {
+      Disconnect(exception);
+      throw new ConnectionClosedException(this, exception);
+    }
+    finally
+    {
+      SendMutex.ReleaseMutex();
+    }
   }
 
   internal void SendResponse(uint id, byte[] payload, int payloadOffset, int payloadLength, bool isError)
@@ -521,7 +613,8 @@ public class Connection : IDisposable
       (totalLength < 0)
     )
     {
-      throw new InvalidOperationException(this, $"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
+    {
+      RemoteRequestCancellationQueue.Remove(id, out CancellationTokenSource? value);
     }
 
     SendMutex.WaitOne();

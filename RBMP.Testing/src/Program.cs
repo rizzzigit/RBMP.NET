@@ -94,7 +94,10 @@ public static class Program
         {
           lock (this)
           {
-            Console.WriteLine($"Rate: {ToReadable(Count)}/s");
+            if (Count != 0)
+            {
+              Console.WriteLine($"Rate: {ToReadable(Count)}/s");
+            }
 
             Count = 0;
           }
@@ -116,11 +119,9 @@ public static class Program
     while (connection.IsConnected)
     {
       ConnectionRequestData message = connection.ReceiveRequest();
-      monitor.Count += (ulong)message.Payload.Length;
-
-      Random.Shared.NextBytes(buffer);
-      monitor.Add(buffer.Length);
-      message.SendResponse(buffer, 0, buffer.Length);
+      Console.WriteLine($"Request #{message.ID}: Cancelled: {message.CancellationToken.IsCancellationRequested}");
+      Thread.Sleep(1000);
+      Console.WriteLine($"Request #{message.ID}: Cancelled: {message.CancellationToken.IsCancellationRequested}");
 
       // Console.Write(System.Text.Encoding.Default.GetString(message));
     }
@@ -128,13 +129,16 @@ public static class Program
 
   public static void ClientConnection(Connection connection, Monitor monitor)
   {
-    byte[] buffer = new byte[256 * 1024];
+    byte[] buffer = new byte[32];
 
     while (connection.IsConnected)
     {
-      Random.Shared.NextBytes(buffer);
-      monitor.Add(buffer.Length);
-      monitor.Add(connection.SendRequest(50U, buffer, 0, buffer.Length).Payload.Length);
+      CancellationTokenSource source = new();
+      Task<ConnectionResponseData> responseData = connection.SendRequestAsync(50, new byte[0], 0, 0, source.Token);
+      Thread.Sleep(500);
+      source.Cancel();
+
+      Thread.Sleep(5000);
     }
   }
 
