@@ -437,19 +437,6 @@ public class Connection : IDisposable
 
 
   private Mutex SendMutex;
-
-  private void CheckSendSize(int length)
-  {
-    if (RemoteConfig == null)
-    {
-      throw new InvalidOperationException(this, $"Remote is not yet ready to receive messages.");
-    }
-    else if (length > RemoteConfig.ReceiveBufferSizeLimit)
-    {
-      throw new InvalidOperationException(this, $"Segment size {length} is larger than allowed {RemoteConfig.ReceiveBufferSizeLimit}.");
-    }
-  }
-
   private WaitQueue<byte[]> MessageQueue;
 
   public byte[] ReceiveMessage() => MessageQueue.Dequeue();
@@ -471,7 +458,6 @@ public class Connection : IDisposable
       throw new InvalidOperationException(this, $"Message size {totalLength} is larger than allowed {MaxSendMessageSize}");
     }
 
-    CheckSendSize(length + 1);
     SendMutex.WaitOne();
     try
     {
