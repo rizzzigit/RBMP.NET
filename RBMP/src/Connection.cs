@@ -321,7 +321,6 @@ public class Connection : IDisposable
     try { MessageQueue.Dispose(toBeThrown); } catch { }
     try { RequestQueue.Dispose(toBeThrown); } catch { }
     try { SendMutex.Dispose(); } catch { }
-    Console.WriteLine(toBeThrown);
 
     foreach (uint key in PendingRequestQueue.Keys)
     {
