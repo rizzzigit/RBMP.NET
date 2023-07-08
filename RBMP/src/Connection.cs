@@ -350,6 +350,11 @@ public class Connection : IDisposable
               while (payloadLength < payload.Length);
             }
 
+            if (RemoteRequestCancellationQueue.ContainsKey(id))
+            {
+              throw new InvalidOperationException(this, "Id that already exists.");
+            }
+
             CancellationTokenSource source = new();
             RemoteRequestCancellationQueue.TryAdd(id, source);
             RequestQueue.Enqueue(new(this, id, command, payload, source.Token));
