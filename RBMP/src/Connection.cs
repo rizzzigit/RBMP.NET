@@ -434,6 +434,11 @@ public class Connection : IDisposable
       OnSend(new byte[]{ 0b100000 }, 0, 1);
       OnSend(buffer, offset, length);
     }
+    catch (Exception exception)
+    {
+      Disconnect(exception);
+      throw new ConnectionClosedException(this, exception);
+    }
     finally
     {
       SendMutex.ReleaseMutex();
@@ -478,6 +483,11 @@ public class Connection : IDisposable
       OnSend(BitConverter.GetBytes(command), 0, 4);
       OnSend(payload, payloadOffset, payloadLength);
     }
+    catch (Exception exception)
+    {
+      Disconnect(exception);
+      throw new ConnectionClosedException(this, exception);
+    }
     finally
     {
       SendMutex.ReleaseMutex();
@@ -521,6 +531,11 @@ public class Connection : IDisposable
       OnSend(new byte[] { isError ? (byte)0b011000 : (byte)0b010000 }, 0, 1);
       OnSend(BitConverter.GetBytes(id), 0, 4);
       OnSend(payload, payloadOffset, payloadLength);
+    }
+    catch (Exception exception)
+    {
+      Disconnect(exception);
+      throw new ConnectionClosedException(this, exception);
     }
     finally
     {

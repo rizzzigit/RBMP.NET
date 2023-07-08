@@ -46,25 +46,95 @@ public static class Program
 
       Task.Run(() =>
       {
+        Monitor monitor = new();
+        monitor.Start();
         try
         {
-          ServerConnection(connection);
+          ServerConnection(connection, monitor);
         }
         catch (Exception exception)
         {
           Console.WriteLine(exception);
         }
+        monitor.Stop();
       });
     }
   }
 
-  public static void ServerConnection(Connection connection)
+  public class Monitor
   {
+    public Monitor()
+    {
+      Count = 0;
+
+      Running = false;
+    }
+
+    public ulong Count;
+    public void Add(int count)
+    {
+      lock (this)
+      {
+        Count += (ulong)count;
+      }
+    }
+
+    public bool Running { get; private set; }
+    public void Start() => Task.Run(() =>
+    {
+      if (Running)
+      {
+        return;
+      }
+
+      Running = true;
+      try
+      {
+        while (Running)
+        {
+          lock (this)
+          {
+            Console.WriteLine($"Rate: {ToReadable(Count)}/s");
+
+            Count = 0;
+          }
+          Thread.Sleep(1000);
+        }
+      }
+      finally
+      {
+        Running = false;
+      }
+    });
+
+    public void Stop() => Running = false;
+  }
+
+  public static void ServerConnection(Connection connection, Monitor monitor)
+  {
+    byte[] buffer = new byte[256 * 1024];
     while (connection.IsConnected)
     {
-      byte[] message = connection.ReceiveMessage();
+      ConnectionRequestData message = connection.ReceiveRequest();
+      monitor.Count += (ulong)message.Payload.Length;
 
-      Console.Write(System.Text.Encoding.Default.GetString(message));
+      Random.Shared.NextBytes(buffer);
+      monitor.Add(buffer.Length);
+      message.SendResponse(buffer, 0, buffer.Length);
+
+      // Console.Write(System.Text.Encoding.Default.GetString(message));
+    }
+  }
+
+  public static void ClientConnection(Connection connection, Monitor monitor)
+  {
+    byte[] buffer = new byte[256 * 1024];
+
+    while (connection.IsConnected)
+    {
+      Random.Shared.NextBytes(buffer);
+      monitor.Add(buffer.Length);
+      monitor.Add(connection.SendRequest(50U, buffer, 0, buffer.Length).Payload.Length);
     }
   }
 
@@ -80,14 +150,10 @@ public static class Program
       connection.Disconnect();
     };
 
-    while (connection.IsConnected)
-    {
-      ConsoleKeyInfo info = Console.ReadKey(true);
-      char character = info.Key == ConsoleKey.Enter ? '\n' : info.KeyChar;
-
-      connection.SendMessage(new byte[] { ((byte)character) }, 0, 1);
-      Console.Write(character);
-    }
+    Monitor monitor = new();
+    monitor.Start();
+    ClientConnection(connection, monitor);
+    monitor.Stop();
 
     connection.Disconnect();
   }
