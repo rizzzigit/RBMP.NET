@@ -469,6 +469,7 @@ public class Connection : IDisposable
     uint id = (uint)Random.Shared.Next();
 
     SendMutex.WaitOne();
+    PendingRequestQueue.TryAdd(id, source);
     try
     {
       OnSend(BitConverter.GetBytes(9 + payloadLength), 0, 4);
@@ -482,7 +483,6 @@ public class Connection : IDisposable
       SendMutex.ReleaseMutex();
     }
 
-    PendingRequestQueue.TryAdd(id, source);
     return source.Task;
   }
 
