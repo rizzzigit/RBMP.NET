@@ -140,13 +140,22 @@ public class Connection : IDisposable
   {
     try
     {
-      byte flag = 0b110000;
-      if (exception != null)
-      {
-        flag |= 0b001000;
-      }
+      SendMutex.WaitOne();
 
-      OnSend(new byte[] { 1, 0, 0, 0, flag }, 0, 5);
+      try
+      {
+        byte flag = 0b110000;
+        if (exception != null)
+        {
+          flag |= 0b001000;
+        }
+
+        OnSend(new byte[] { 1, 0, 0, 0, flag }, 0, 5);
+      }
+      finally
+      {
+        SendMutex.ReleaseMutex();
+      }
     }
     catch { }
 
