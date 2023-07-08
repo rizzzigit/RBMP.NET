@@ -38,14 +38,14 @@ public class Connection : IDisposable
 
   public Connection(ConnectionConfig config, HttpListenerWebSocketContext listenerWebSocketContext) : this(config, listenerWebSocketContext.WebSocket) { }
   public Connection(ConnectionConfig config, WebSocket webSocket) : this(config, new WebSocketStreamBridge(webSocket)) { }
-  public Connection(ConnectionConfig config, Stream underlyingStream)
+  public Connection(ConnectionConfig config, Stream stream)
   {
-    if (!(underlyingStream.CanWrite && underlyingStream.CanRead))
+    if (!(stream.CanWrite && stream.CanRead))
     {
       throw new InvalidStreamException(this);
     }
 
-    UnderlyingStream = underlyingStream;
+    Stream = stream;
     Config = config.Clone();
 
     MessageQueue = new();
@@ -58,7 +58,7 @@ public class Connection : IDisposable
     Init();
   }
 
-  private Stream UnderlyingStream;
+  private Stream Stream;
 
   public void Dispose() => Disconnect();
 
@@ -154,10 +154,10 @@ public class Connection : IDisposable
   private Exception? Exception;
 
   public virtual bool IsConnected => ReceiveThread?.IsAlive == true;
-  protected virtual int OnReceive(byte[] buffer, int offset, int count) => UnderlyingStream.Read(buffer, offset, count);
+  protected virtual int OnReceive(byte[] buffer, int offset, int count) => Stream.Read(buffer, offset, count);
   protected virtual int OnSend(byte[] buffer, int offset, int count)
   {
-    UnderlyingStream.Write(buffer, offset, count);
+    Stream.Write(buffer, offset, count);
     return count;
   }
 
@@ -187,7 +187,7 @@ public class Connection : IDisposable
     }
     catch { }
 
-    try { UnderlyingStream.Close(); } catch { }
+    try { Stream.Close(); } catch { }
   }
 
   private void RunReceiveThread(ConnectionInitResult result) => RunReceiveThread(result.RemoteConfig);
