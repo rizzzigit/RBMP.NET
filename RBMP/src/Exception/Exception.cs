@@ -54,3 +54,13 @@ public class InvalidConfigException : ConnectionException
 
   public readonly ConnectionConfig Config;
 }
+
+public class RequestCancelledException : ConnectionException
+{
+  public RequestCancelledException(Connection connection, ConnectionRequestData requestData) : base(connection, $"Request has been canceled.")
+  {
+    RequestData = requestData;
+  }
+
+  public readonly ConnectionRequestData RequestData;
+}

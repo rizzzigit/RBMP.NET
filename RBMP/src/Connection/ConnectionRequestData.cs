@@ -19,6 +19,6 @@ public class ConnectionRequestData
   public uint Command { get; private set; }
   public byte[] Payload { get; private set; }
 
-  public void SendResponse(byte[] payload, int payloadOffset, int payloadLlength) => Connection.SendResponse(ID, payload, payloadOffset, payloadLlength, false);
-  public void SendError(byte[] payload, int payloadOffset, int payloadLlength) => Connection.SendResponse(ID, payload, payloadOffset, payloadLlength, true);
+  public void SendResponse(byte[] payload, int payloadOffset, int payloadLlength) => Connection.SendResponse(this, payload, payloadOffset, payloadLlength, false);
+  public void SendError(byte[] payload, int payloadOffset, int payloadLlength) => Connection.SendResponse(this, payload, payloadOffset, payloadLlength, true);
 }

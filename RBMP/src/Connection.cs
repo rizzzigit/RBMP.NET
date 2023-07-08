@@ -614,7 +614,7 @@ public class Connection : IDisposable
   }
 
   public int MaxSendResponseSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 5;
-  internal void SendResponse(uint id, byte[] payload, int payloadOffset, int payloadLength, bool isError)
+  internal void SendResponse(ConnectionRequestData requestData, byte[] payload, int payloadOffset, int payloadLength, bool isError)
   {
     if (!IsConnected)
     {
@@ -631,7 +631,10 @@ public class Connection : IDisposable
     }
 
     {
-      RemoteRequestCancellationQueue.Remove(id, out CancellationTokenSource? value);
+      if (!RemoteRequestCancellationQueue.Remove(requestData.ID, out CancellationTokenSource? value))
+      {
+        throw new RequestCancelledException(this, requestData);
+      }
     }
 
     SendMutex.WaitOne();
@@ -639,7 +642,7 @@ public class Connection : IDisposable
     {
       OnSend(BitConverter.GetBytes(5 + payloadLength), 0, 4);
       OnSend(new byte[] { isError ? (byte)0b011000 : (byte)0b010000 }, 0, 1);
-      OnSend(BitConverter.GetBytes(id), 0, 4);
+      OnSend(BitConverter.GetBytes(requestData.ID), 0, 4);
       OnSend(payload, payloadOffset, payloadLength);
     }
     catch (Exception exception)
