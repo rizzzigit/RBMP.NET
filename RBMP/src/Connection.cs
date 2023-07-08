@@ -9,6 +9,33 @@ public delegate void ConnectionDisconnectHandler(Connection connection, Exceptio
 
 public class Connection : IDisposable
 {
+  private static ConnectionConfig ValidateConfigAndClone(Connection connection, ConnectionConfig config)
+  {
+    List<Exception> exceptions = new();
+
+    if (config.ReceiveBufferSizeLimit < 16)
+    {
+      exceptions.Add(new InvalidConfigException(connection, config, "ReceiveBufferSizeLimit", config.ReceiveBufferSizeLimit));
+    }
+
+    if (config.RequestTimeout < 0)
+    {
+      exceptions.Add(new InvalidConfigException(connection, config, "RequestTimeout", config.RequestTimeout));
+    }
+
+    if (config.ConcurrentPendingRequestLimit < 1)
+    {
+      exceptions.Add(new InvalidConfigException(connection, config, "ConcurrentPendingRequestLimit", config.ConcurrentPendingRequestLimit));
+    }
+
+    if (exceptions.Count != 0)
+    {
+      throw new AggregateException(exceptions);
+    }
+
+    return config.Clone();
+  }
+
   public Connection(ConnectionConfig config, HttpListenerWebSocketContext listenerWebSocketContext) : this(config, listenerWebSocketContext.WebSocket) { }
   public Connection(ConnectionConfig config, WebSocket webSocket) : this(config, new WebSocketStreamBridge(webSocket)) { }
   public Connection(ConnectionConfig config, Stream underlyingStream)

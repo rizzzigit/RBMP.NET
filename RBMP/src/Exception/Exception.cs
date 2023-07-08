@@ -44,3 +44,13 @@ public class InvalidDataException : ConnectionException
 
   }
 }
+
+public class InvalidConfigException : ConnectionException
+{
+  public InvalidConfigException(Connection connection, ConnectionConfig config, string fieldName, object fieldValue) : base(connection, $"Invalid config value {fieldName} set to `{fieldValue}`")
+  {
+    Config = config;
+  }
+
+  public readonly ConnectionConfig Config;
+}
