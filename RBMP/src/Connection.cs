@@ -532,23 +532,28 @@ public class Connection : IDisposable
 
       PendingRequestQueue.TryAdd(id, source);
       SendMutex.WaitOne();
-      try
+
+      if (!cancellationToken.IsCancellationRequested)
       {
-        cancelRemotely = true;
-        OnSend(BitConverter.GetBytes(9 + payloadLength), 0, 4);
-        OnSend(new byte[] { 0b000000 }, 0, 1);
-        OnSend(BitConverter.GetBytes(id), 0, 4);
-        OnSend(BitConverter.GetBytes(command), 0, 4);
-        OnSend(payload, payloadOffset, payloadLength);
-      }
-      catch (Exception exception)
-      {
-        Disconnect(exception);
-        throw new ConnectionClosedException(this, exception);
-      }
-      finally
-      {
-        SendMutex.ReleaseMutex();
+        try
+        {
+          cancelRemotely = true;
+
+          OnSend(BitConverter.GetBytes(9 + payloadLength), 0, 4);
+          OnSend(new byte[] { 0b000000 }, 0, 1);
+          OnSend(BitConverter.GetBytes(id), 0, 4);
+          OnSend(BitConverter.GetBytes(command), 0, 4);
+          OnSend(payload, payloadOffset, payloadLength);
+        }
+        catch (Exception exception)
+        {
+          Disconnect(exception);
+          throw new ConnectionClosedException(this, exception);
+        }
+        finally
+        {
+          SendMutex.ReleaseMutex();
+        }
       }
     }
     else
