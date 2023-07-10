@@ -123,7 +123,7 @@ public class Connection : IDisposable
         }
 
         initResult = new(
-          remoteConfig: RemoteConfig = ConnectionConfig.Deserialize(configBuffer)
+          remoteConfig: RemoteConfig = ValidateConfigAndClone(this, ConnectionConfig.Deserialize(configBuffer))
         );
       }
 
