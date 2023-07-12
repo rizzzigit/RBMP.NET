@@ -350,7 +350,10 @@ public class Connection : IDisposable
               while (payloadLength < payload.Length);
             }
 
-            if (RemoteRequestCancellationQueue.ContainsKey(id))
+            if (RemoteRequestCancellationQueue.Count > Config.ConcurrentPendingRequestLimit)
+            {
+              throw new InvalidOperationException(this, $"Max number of concurrent pending requests has been reached ({Config.ConcurrentPendingRequestLimit}).");
+            } else if (RemoteRequestCancellationQueue.ContainsKey(id))
             {
               throw new InvalidOperationException(this, "Id that already exists.");
             }
@@ -504,7 +507,7 @@ public class Connection : IDisposable
       throw new InvalidOperationException(this, $"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
     } else if (PendingRequestQueue.Count >= (RemoteConfig.ConcurrentPendingRequestLimit))
     {
-      throw new InvalidOperationException(this, $"Max number of concurrent pending requests has been reached ({RemoteConfig.ConcurrentPendingRequestLimit})");
+      throw new InvalidOperationException(this, $"Max number of concurrent pending requests has been reached ({RemoteConfig.ConcurrentPendingRequestLimit}).");
     }
 
     TaskCompletionSource<ConnectionResponseData> source = new();
