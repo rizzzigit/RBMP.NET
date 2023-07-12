@@ -55,7 +55,8 @@ public class Connection : IDisposable
 
     SendMutex = new();
 
-    Init();
+    ConnectionInitResult initResult = Init();
+    RemoteConfig = initResult.RemoteConfig;
   }
 
   private Stream Stream;
@@ -63,10 +64,10 @@ public class Connection : IDisposable
   public void Dispose() => Disconnect();
 
   private ConnectionConfig Config;
-  private ConnectionConfig? RemoteConfig;
+  private ConnectionConfig RemoteConfig;
 
   public ulong ClientID => Config.ClientID;
-  public ulong RemoteClientId => RemoteConfig?.ClientID ?? 0;
+  public ulong RemoteClientId => RemoteConfig.ClientID;
 
   private ConnectionInitResult? Initialized;
   private Thread? ReceiveThread;
@@ -123,7 +124,7 @@ public class Connection : IDisposable
         }
 
         initResult = new(
-          remoteConfig: RemoteConfig = ValidateConfigAndClone(this, ConnectionConfig.Deserialize(configBuffer))
+          remoteConfig: ValidateConfigAndClone(this, ConnectionConfig.Deserialize(configBuffer))
         );
       }
 
@@ -131,7 +132,7 @@ public class Connection : IDisposable
       {
         try
         {
-          RunReceiveThread(initResult);
+          RunReceiveThread();
         }
         catch (Exception _exception)
         {
@@ -190,8 +191,7 @@ public class Connection : IDisposable
     try { Stream.Close(); } catch { }
   }
 
-  private void RunReceiveThread(ConnectionInitResult result) => RunReceiveThread(result.RemoteConfig);
-  private void RunReceiveThread(ConnectionConfig remoteConfig)
+  private void RunReceiveThread()
   {
     while (IsConnected)
     {
@@ -446,7 +446,7 @@ public class Connection : IDisposable
 
   public byte[] ReceiveMessage() => MessageQueue.Dequeue();
 
-  public int MaxSendMessageSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 1;
+  public int MaxSendMessageSize => (RemoteConfig.ReceiveBufferSizeLimit) - 1;
   public void SendMessage(byte[] buffer, int offset, int length)
   {
     if (!IsConnected)
@@ -487,7 +487,7 @@ public class Connection : IDisposable
 
   public ConnectionRequestData ReceiveRequest() => RequestQueue.Dequeue();
 
-  public int MaxSendRequestSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 9;
+  public int MaxSendRequestSize => (RemoteConfig.ReceiveBufferSizeLimit) - 9;
   public Task<ConnectionResponseData> SendRequestAsync(uint command, byte[] payload, int payloadOffset, int payloadLength, CancellationToken cancellationToken)
   {
     if (!IsConnected)
@@ -502,9 +502,9 @@ public class Connection : IDisposable
     )
     {
       throw new InvalidOperationException(this, $"Request size {totalLength} is alrger than allowed {MaxSendRequestSize}.");
-    } else if (PendingRequestQueue.Count >= (RemoteConfig?.ConcurrentPendingRequestLimit ?? 0))
+    } else if (PendingRequestQueue.Count >= (RemoteConfig.ConcurrentPendingRequestLimit))
     {
-      throw new InvalidOperationException(this, $"Max number of concurrent pending requests has been reached ({RemoteConfig?.ConcurrentPendingRequestLimit ?? 0})");
+      throw new InvalidOperationException(this, $"Max number of concurrent pending requests has been reached ({RemoteConfig.ConcurrentPendingRequestLimit})");
     }
 
     TaskCompletionSource<ConnectionResponseData> source = new();
@@ -624,7 +624,7 @@ public class Connection : IDisposable
     }
   }
 
-  public int MaxSendResponseSize => (RemoteConfig?.ReceiveBufferSizeLimit ?? 0) - 5;
+  public int MaxSendResponseSize => (RemoteConfig.ReceiveBufferSizeLimit) - 5;
   internal void SendResponse(ConnectionRequestData requestData, byte[] payload, int payloadOffset, int payloadLength, bool isError)
   {
     if (!IsConnected)
